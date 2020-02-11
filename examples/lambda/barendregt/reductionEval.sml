@@ -67,7 +67,7 @@ val congs = [lameq_APPcong, SPEC_ALL lameq_LAM,
 val user_rewrites = ref (SSFRAG {dprocs = [], ac = [], rewrs = [],
                                  congs = [], filter = NONE,
                                  name = SOME "betasimps", convs = []})
-fun add_rwts (ths : (string * thm) list) =
+fun add_rwts (ths : (KernelSig.kernelname * thm) list) =
     user_rewrites :=
       simpLib.merge_ss [!user_rewrites, simpLib.rewrites (map #2 ths)]
 
@@ -96,7 +96,11 @@ fun betafy ss =
 fun bsrw_ss() = betafy(srw_ss())
 
 val {export = export_betarwt,...} =
-    ThmSetData.new_exporter "betasimp" (K add_rwts)
+    ThmSetData.new_exporter {
+      settype = "betasimp",
+      efns = {add = (fn {named_thms,...} => add_rwts named_thms),
+              remove = (fn _ => ())}
+    }
 fun bstore_thm (trip as (n,t,tac)) = store_thm trip before export_betarwt n
 
 (* ----------------------------------------------------------------------
@@ -118,8 +122,10 @@ in
                subsets = [],
                rewrs = [MATCH_MP RTC_SINGLE
                                  (SPEC_ALL (CONJUNCT1 weak_head_rules))]} ss ++
-  SSFRAG {dprocs = [], ac = [], rewrs = [lemma14b, bnf_whnf], congs = congs,
-          filter = NONE, name = NONE, convs = []}
+  SSFRAG {dprocs = [], ac = [],
+          rewrs = [(SOME {Thy = "term", Name = "lemma14b"}, lemma14b),
+                   (SOME {Thy = "head_reduction", Name = "bnf_whnf"},bnf_whnf)],
+          congs = congs, filter = NONE, name = NONE, convs = []}
 end
 
 (* ----------------------------------------------------------------------
@@ -264,7 +270,9 @@ val NORMSTAR_ss = SSFRAG {
             key = SOME([], mk_comb(noreduct_t, Mv_t)),
             name = "noreduct_CONV", trace = 2}],
   filter = SOME normstar_filter, dprocs = [], name = SOME "NORMSTAR_ss",
-  rewrs = [normstar_nopath, termTheory.lemma14b]};
+  rewrs = [(SOME{Thy = "normal_order", Name = "normstar_nopath"},
+            normstar_nopath),
+           (SOME{Thy = "term", Name = "lemma14b"}, termTheory.lemma14b)]};
 
 (* ----------------------------------------------------------------------
     unvarify_tac

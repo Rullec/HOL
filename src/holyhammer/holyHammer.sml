@@ -8,7 +8,7 @@
 structure holyHammer :> holyHammer =
 struct
 
-open HolKernel boolLib Thread aiLib smlExecute smlRedirect
+open HolKernel boolLib Thread aiLib smlExecute smlRedirect smlParallel
   mlFeature mlThmData mlTacticData mlNearestNeighbor
   hhExportFof hhReconstruct hhTranslate hhTptp
 
@@ -45,6 +45,8 @@ val all_atps = ref [Eprover,Z3,Vampire]
    Directories
    ------------------------------------------------------------------------- *)
 
+val parallel_tag = ref ""
+
 fun pathl sl = case sl of
     []  => raise ERR "pathl" "empty"
   | [a] => a
@@ -53,13 +55,10 @@ fun pathl sl = case sl of
 val hh_dir         = pathl [HOLDIR,"src","holyhammer"];
 
 val provbin_dir    = pathl [hh_dir,"provers"];
-fun provdir_of atp = pathl [provbin_dir, name_of atp ^ "_files"]
-val parallel_dir   = pathl [provbin_dir,"eprover_parallel"];
-
+fun provdir_of atp = pathl [provbin_dir,
+  name_of atp ^ "_files" ^ (!parallel_tag)]
 fun out_of atp     = pathl [provdir_of atp,"out"]
 fun status_of atp  = pathl [provdir_of atp,"status"]
-fun out_dir dir    = pathl [dir,"out"]
-fun status_dir dir = pathl [dir,"status"]
 
 (* -------------------------------------------------------------------------
    Evaluation log
@@ -159,6 +158,7 @@ fun exists_atp_err atp =
 
 fun hh_pb wanted_atpl premises goal =
   let
+    val _ = app (mkDir_err o provdir_of) wanted_atpl
     val atpl = filter exists_atp_err wanted_atpl
     val cj = list_mk_imp goal
     val _  = app (export_to_atp premises cj) atpl
@@ -191,12 +191,19 @@ fun main_hh thmdata goal =
     hh_pb atpl premises goal
   end
 
+fun has_boolty x = type_of x = bool
+fun has_boolty_goal goal = all has_boolty (snd goal :: fst goal)
+
+
 fun hh_goal goal =
-  let val (stac,tac) = dfind goal (!hh_goaltac_cache) in
-    print_endline ("goal already solved by:\n  " ^ stac);
-    tac
-  end
-  handle NotFound => main_hh (create_thmdata ()) goal
+  if not (has_boolty_goal goal)
+  then raise ERR "hh_goal" "a term is not of type bool"
+  else
+    let val (stac,tac) = dfind goal (!hh_goaltac_cache) in
+      print_endline ("goal already solved by:\n  " ^ stac);
+      tac
+    end
+    handle NotFound => main_hh (create_thmdata ()) goal
 
 fun hh_fork goal = Thread.fork (fn () => ignore (hh_goal goal), attrib)
 fun hh goal = (hh_goal goal) goal
@@ -232,14 +239,6 @@ fun hh_pb_eval_thy atpl thy =
   app (hh_pb_eval_thm atpl) (DB.theorems thy);
   eval_flag := false; eval_thy := "scratch"
   )
-
-(* -------------------------------------------------------------------------
-   Usage:
-     load "holyHammer"; load "gcdTheory"; open holyHammer;
-     set_timeout 5;
-     hh_pb_eval_thy [Eprover] "gcd";
-   Results can be found in HOLDIR/src/holyhammer/eval.
-  ------------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------------
    Function called by the tactictoe evaluation framework

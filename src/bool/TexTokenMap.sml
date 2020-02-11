@@ -25,10 +25,20 @@ struct
   end
   val tyname = "TexTokenMap"
 
-  val (mk,dest) = Theory.LoadableThyData.new
-                    {thydataty = tyname, merge = op@, terms = K [],
-                     read = K (Coding.lift read_deltas),
-                     write = K write_deltas}
+  fun pr_delta {hol,TeX = (t,i)} =
+      "{hol = " ^ hol ^ ", TeX = (" ^ t ^ ", " ^ Int.toString i ^ "}"
+
+  infix oo
+  fun (f oo g) = Option.mapPartial f o g
+
+  val (mk,dest) = Theory.LoadableThyData.new {
+        thydataty = tyname, merge = op@, terms = K [], strings = K [],
+        read = K (Coding.lift read_deltas oo HOLsexp.string_decode),
+        pp = fn dl => "[" ^
+                      String.concatWith ", " (map pr_delta dl) ^
+                      "]",
+        write = K (HOLsexp.String o write_deltas)
+      }
 
 
   val tokmap = ref (Binarymap.mkDict String.compare)
